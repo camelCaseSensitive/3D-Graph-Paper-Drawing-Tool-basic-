@@ -1,0 +1,720 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Graph-Paper 3D Prism Drawer</title>
+<style>
+  :root{
+    --panel:#f8f6ee;
+    --ink:#262626;
+    --muted:#676767;
+    --line:#d7d2c6;
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%;margin:0}
+  body{
+    font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    color:var(--ink);
+    background:#ece9df;
+    overflow:hidden;
+  }
+  #app{
+    height:100%;
+    display:grid;
+    grid-template-columns:320px 1fr;
+  }
+  #panel{
+    background:var(--panel);
+    border-right:1px solid #cbc6b9;
+    padding:16px;
+    overflow:auto;
+    box-shadow:2px 0 8px rgba(0,0,0,.06);
+    z-index:2;
+  }
+  h1{
+    font-size:18px;
+    line-height:1.2;
+    margin:0 0 8px;
+  }
+  .sub{
+    font-size:12px;
+    color:var(--muted);
+    margin:0 0 16px;
+    line-height:1.45;
+  }
+  .row{
+    display:grid;
+    grid-template-columns:1fr 1fr 1fr;
+    gap:8px;
+    margin-bottom:10px;
+  }
+  label{
+    display:block;
+    font-size:12px;
+    color:#444;
+    margin-bottom:4px;
+  }
+  input[type="number"], textarea{
+    width:100%;
+    font:inherit;
+    border:1px solid #c8c1b2;
+    background:#fffefa;
+    border-radius:7px;
+    padding:8px;
+    color:#222;
+  }
+  textarea{
+    min-height:100px;
+    resize:vertical;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size:12px;
+    line-height:1.45;
+  }
+  .controls{
+    display:grid;
+    gap:10px;
+    margin-top:14px;
+  }
+  .check{
+    display:flex;
+    gap:8px;
+    align-items:center;
+    font-size:13px;
+  }
+  input[type="range"]{width:100%}
+  button{
+    border:1px solid #aaa393;
+    background:#fffefa;
+    padding:9px 10px;
+    border-radius:8px;
+    cursor:pointer;
+    font-weight:600;
+  }
+  button:hover{background:#f1eee5}
+  .buttons{
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:8px;
+    margin-top:12px;
+  }
+  .help{
+    margin-top:14px;
+    border-top:1px solid var(--line);
+    padding-top:12px;
+    font-size:12px;
+    line-height:1.5;
+    color:#555;
+  }
+  code{
+    background:#ede9de;
+    padding:1px 4px;
+    border-radius:4px;
+  }
+  #wrap{
+    position:relative;
+    min-width:0;
+    min-height:0;
+  }
+  canvas{
+    width:100%;
+    height:100%;
+    display:block;
+    touch-action:none;
+  }
+  #badge{
+    position:absolute;
+    right:12px;
+    bottom:10px;
+    padding:6px 9px;
+    border-radius:7px;
+    background:rgba(255,255,255,.78);
+    backdrop-filter:blur(4px);
+    font-size:11px;
+    color:#555;
+    border:1px solid rgba(0,0,0,.08);
+    pointer-events:none;
+  }
+  @media(max-width:760px){
+    #app{grid-template-columns:1fr;grid-template-rows:auto 1fr}
+    #panel{
+      border-right:0;
+      border-bottom:1px solid #cbc6b9;
+      max-height:44vh;
+    }
+  }
+</style>
+</head>
+<body>
+<div id="app">
+  <aside id="panel">
+    <h1>Graph-Paper 3D Drawer</h1>
+    <p class="sub">
+      Projection rule: <b>x</b> = 2 graph squares right per unit,
+      <b>z</b> = 2 graph squares up per unit,
+      <b>y</b> = 1 graph square diagonally back per unit.
+    </p>
+
+    <div class="row">
+      <div>
+        <label for="x">x width</label>
+        <input id="x" type="number" step="0.25" value="1.5">
+      </div>
+      <div>
+        <label for="y">y depth</label>
+        <input id="y" type="number" step="0.25" value="5">
+      </div>
+      <div>
+        <label for="z">z height</label>
+        <input id="z" type="number" step="0.25" value="3">
+      </div>
+    </div>
+
+    <label for="objects">Optional multiple boxes</label>
+    <textarea id="objects" spellcheck="false" placeholder="One box per line:
+1.5, 5, 3
+
+or position it:
+1.5, 5, 3 @ 0, 0, 0
+2, 2, 1 @ 1.5, 0, 3"></textarea>
+
+    <div class="controls">
+      <div>
+        <label>Graph-square size: <span id="gridSizeOut">24</span> px</label>
+        <input id="gridSize" type="range" min="10" max="50" value="24">
+      </div>
+
+      <div>
+        <label>Line weight: <span id="lineOut">2.0</span> px</label>
+        <input id="lineWidth" type="range" min="1" max="4" value="2" step="0.25">
+      </div>
+
+      <label class="check"><input id="labels" type="checkbox" checked> show dimension labels</label>
+      <label class="check"><input id="visibleOnly" type="checkbox" checked> shade only visible faces / hide hidden lines</label>
+      <label class="check"><input id="flipDiag" type="checkbox"> flip y diagonal to back-right</label>
+      <label class="check"><input id="axes" type="checkbox" checked> show x / y / z axis directions</label>
+    </div>
+
+    <div class="buttons">
+      <button id="reset">Reset view</button>
+      <button id="png">Save PNG</button>
+    </div>
+
+    <div class="help">
+      Drag the paper to pan. Use the mouse wheel / trackpad to zoom.
+      On touch screens, drag with one finger. The geometry stays locked to
+      the graph-paper proportions.<br><br>
+      In the multi-box field, use <code>x, y, z</code>, or
+      <code>x, y, z @ ox, oy, oz</code> to place a box at a 3D offset.
+      Leave it blank to use the three number boxes above.
+    </div>
+  </aside>
+
+  <main id="wrap">
+    <canvas id="c"></canvas>
+    <div id="badge">x → right · y ↖ back · z ↑ up</div>
+  </main>
+</div>
+
+<script>
+(() => {
+  const canvas = document.getElementById('c');
+  const ctx = canvas.getContext('2d');
+
+  const els = {
+    x: document.getElementById('x'),
+    y: document.getElementById('y'),
+    z: document.getElementById('z'),
+    objects: document.getElementById('objects'),
+    gridSize: document.getElementById('gridSize'),
+    gridSizeOut: document.getElementById('gridSizeOut'),
+    lineWidth: document.getElementById('lineWidth'),
+    lineOut: document.getElementById('lineOut'),
+    labels: document.getElementById('labels'),
+    visibleOnly: document.getElementById('visibleOnly'),
+    flipDiag: document.getElementById('flipDiag'),
+    axes: document.getElementById('axes'),
+    reset: document.getElementById('reset'),
+    png: document.getElementById('png'),
+    badge: document.getElementById('badge')
+  };
+
+  let dpr = Math.max(1, window.devicePixelRatio || 1);
+  let panX = 0, panY = 0;
+  let zoom = 1;
+
+  function ySign() {
+    return els.flipDiag.checked ? 1 : -1;
+  }
+
+  function resize() {
+    const r = canvas.getBoundingClientRect();
+    dpr = Math.max(1, window.devicePixelRatio || 1);
+    canvas.width = Math.round(r.width * dpr);
+    canvas.height = Math.round(r.height * dpr);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    draw();
+  }
+
+  function baseOrigin() {
+    const r = canvas.getBoundingClientRect();
+    return {
+      x: r.width * 0.48 + panX,
+      y: r.height * 0.72 + panY
+    };
+  }
+
+  // Projection:
+  // x: +2 graph squares horizontally
+  // z: -2 graph squares vertically
+  // y: one graph square diagonally back, either up-left or up-right
+  function project(x, y, z) {
+    const g = Number(els.gridSize.value) * zoom;
+    const o = baseOrigin();
+    const s = ySign();
+    return {
+      x: o.x + (2*x + s*y) * g,
+      y: o.y - (2*z + y) * g
+    };
+  }
+
+  function parseBoxes() {
+    const text = els.objects.value.trim();
+    if (!text) {
+      return [{
+        sx: num(els.x.value,1.5),
+        sy: num(els.y.value,5),
+        sz: num(els.z.value,3),
+        ox:0, oy:0, oz:0
+      }];
+    }
+
+    const boxes = [];
+    for (const raw of text.split(/\n+/)) {
+      const line = raw.replace(/#.*/, '').trim();
+      if (!line) continue;
+      const [sizePart, posPart] = line.split('@').map(s => s.trim());
+      const s = sizePart.split(/[,\s]+/).filter(Boolean).map(Number);
+      if (s.length < 3 || s.slice(0,3).some(v => !Number.isFinite(v))) continue;
+
+      let p = [0,0,0];
+      if (posPart) {
+        const q = posPart.split(/[,\s]+/).filter(Boolean).map(Number);
+        if (q.length >= 3 && q.slice(0,3).every(Number.isFinite)) p = q.slice(0,3);
+      }
+      boxes.push({sx:s[0], sy:s[1], sz:s[2], ox:p[0], oy:p[1], oz:p[2]});
+    }
+    return boxes.length ? boxes : [];
+  }
+
+  function num(v, fallback) {
+    const n = Number(v);
+    return Number.isFinite(n) ? n : fallback;
+  }
+
+  function drawGrid() {
+    const r = canvas.getBoundingClientRect();
+    const g = Number(els.gridSize.value) * zoom;
+
+    ctx.save();
+    ctx.fillStyle = '#fbfaf3';
+    ctx.fillRect(0,0,r.width,r.height);
+
+    const blue = '#8fc2dc';
+    const strongBlue = '#72afcf';
+
+    const o = baseOrigin();
+    const startX = mod(o.x, g);
+    const startY = mod(o.y, g);
+
+    ctx.lineWidth = 0.8;
+    ctx.strokeStyle = blue;
+    ctx.globalAlpha = 0.78;
+    ctx.beginPath();
+    for (let x=startX; x<=r.width; x+=g) {
+      ctx.moveTo(Math.round(x)+0.5,0);
+      ctx.lineTo(Math.round(x)+0.5,r.height);
+    }
+    for (let y=startY; y<=r.height; y+=g) {
+      ctx.moveTo(0,Math.round(y)+0.5);
+      ctx.lineTo(r.width,Math.round(y)+0.5);
+    }
+    ctx.stroke();
+
+    ctx.globalAlpha = 0.46;
+    ctx.lineWidth = 1;
+    ctx.strokeStyle = strongBlue;
+    ctx.beginPath();
+    const big = g*5;
+    const sx = mod(o.x, big);
+    const sy = mod(o.y, big);
+    for (let x=sx; x<=r.width; x+=big) {
+      ctx.moveTo(Math.round(x)+0.5,0);
+      ctx.lineTo(Math.round(x)+0.5,r.height);
+    }
+    for (let y=sy; y<=r.height; y+=big) {
+      ctx.moveTo(0,Math.round(y)+0.5);
+      ctx.lineTo(r.width,Math.round(y)+0.5);
+    }
+    ctx.stroke();
+
+    ctx.restore();
+  }
+
+  function mod(a,b){ return ((a%b)+b)%b; }
+
+  function polygon(points, fill, stroke=null) {
+    if (!points.length) return;
+    ctx.beginPath();
+    ctx.moveTo(points[0].x, points[0].y);
+    for (let i=1;i<points.length;i++) ctx.lineTo(points[i].x, points[i].y);
+    ctx.closePath();
+    if (fill) { ctx.fillStyle=fill; ctx.fill(); }
+    if (stroke) { ctx.strokeStyle=stroke; ctx.stroke(); }
+  }
+
+  function boxPoints(b) {
+    const {sx:X, sy:Y, sz:Z, ox,oy,oz} = b;
+    return {
+      A: project(ox,     oy,     oz),
+      B: project(ox+X,   oy,     oz),
+      C: project(ox+X,   oy+Y,   oz),
+      D: project(ox,     oy+Y,   oz),
+      E: project(ox,     oy,     oz+Z),
+      F: project(ox+X,   oy,     oz+Z),
+      G: project(ox+X,   oy+Y,   oz+Z),
+      H: project(ox,     oy+Y,   oz+Z)
+    };
+  }
+
+  function boxWorldPoints(b) {
+    const {sx:X, sy:Y, sz:Z, ox,oy,oz} = b;
+    return {
+      A: {x:ox,   y:oy,   z:oz},
+      B: {x:ox+X, y:oy,   z:oz},
+      C: {x:ox+X, y:oy+Y, z:oz},
+      D: {x:ox,   y:oy+Y, z:oz},
+      E: {x:ox,   y:oy,   z:oz+Z},
+      F: {x:ox+X, y:oy,   z:oz+Z},
+      G: {x:ox+X, y:oy+Y, z:oz+Z},
+      H: {x:ox,   y:oy+Y, z:oz+Z}
+    };
+  }
+
+  function boxDepth(b) {
+    const s = ySign();
+    const cx = b.ox + b.sx/2;
+    const cy = b.oy + b.sy/2;
+    const cz = b.oz + b.sz/2;
+    return s*cx - 2*cy + cz;
+  }
+
+  function faceDepth(face3D) {
+    const s = ySign();
+    let cx = 0, cy = 0, cz = 0;
+    for (const p of face3D) {
+      cx += p.x;
+      cy += p.y;
+      cz += p.z;
+    }
+    cx /= face3D.length;
+    cy /= face3D.length;
+    cz /= face3D.length;
+    return s*cx - 2*cy + cz;
+  }
+
+  function drawBox(b) {
+    const p = boxPoints(b);
+
+    if (!els.visibleOnly.checked) {
+      drawBoxWireframe(b, p);
+    }
+
+    if (els.labels.checked) drawDimensions(b,p);
+  }
+
+  function drawBoxWireframe(b,p) {
+    const edges = [
+      ['A','B'],['B','C'],['C','D'],['D','A'],
+      ['E','F'],['F','G'],['G','H'],['H','E'],
+      ['A','E'],['B','F'],['C','G'],['D','H']
+    ];
+
+    ctx.save();
+    ctx.strokeStyle = '#5a5852';
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.lineWidth = Number(els.lineWidth.value);
+
+    for (const [u,v] of edges) line(p[u],p[v]);
+
+    ctx.globalAlpha=.22;
+    ctx.lineWidth = Math.max(.7, Number(els.lineWidth.value)*.55);
+    for (const [u,v] of edges) {
+      const a={x:p[u].x+1.5,y:p[u].y+1};
+      const c={x:p[v].x+1.5,y:p[v].y+1};
+      line(a,c);
+    }
+    ctx.restore();
+  }
+
+  function buildVisibleFaces(boxes) {
+    const backRight = els.flipDiag.checked;
+    const faces = [];
+
+    for (const b of boxes) {
+      const p2 = boxPoints(b);
+      const p3 = boxWorldPoints(b);
+
+      const frontKeys = ['A','B','F','E'];
+      const topKeys = ['E','F','G','H'];
+      const sideKeys = backRight ? ['B','C','G','F'] : ['A','D','H','E'];
+
+      const faceDefs = [
+        {kind:'top', keys:topKeys,   fill:'#ebe6d5'},
+        {kind:'side', keys:sideKeys, fill:'#e4decd'},
+        {kind:'front', keys:frontKeys, fill:'#f5f1e2'}
+      ];
+
+      for (const def of faceDefs) {
+        const pts2 = def.keys.map(k => p2[k]);
+        const pts3 = def.keys.map(k => p3[k]);
+        faces.push({
+          kind: def.kind,
+          pts2,
+          pts3,
+          depth: faceDepth(pts3),
+          fill: def.fill
+        });
+      }
+    }
+
+    const facePriority = { top:0, side:1, front:2 };
+    faces.sort((a,b) => {
+      if (a.depth !== b.depth) return a.depth - b.depth;
+      return (facePriority[a.kind] || 0) - (facePriority[b.kind] || 0);
+    });
+
+    return faces;
+  }
+
+  function drawFace(face) {
+    polygon(face.pts2, face.fill);
+
+    ctx.save();
+    ctx.strokeStyle = '#5a5852';
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.lineWidth = Number(els.lineWidth.value);
+
+    for (let i=0; i<face.pts2.length; i++) {
+      const a = face.pts2[i];
+      const b = face.pts2[(i+1) % face.pts2.length];
+      line(a,b);
+    }
+
+    ctx.globalAlpha = .18;
+    ctx.lineWidth = Math.max(.7, Number(els.lineWidth.value)*.5);
+    for (let i=0; i<face.pts2.length; i++) {
+      const a0 = face.pts2[i];
+      const b0 = face.pts2[(i+1) % face.pts2.length];
+      const a = {x:a0.x+1.2, y:a0.y+0.9};
+      const b = {x:b0.x+1.2, y:b0.y+0.9};
+      line(a,b);
+    }
+
+    ctx.restore();
+  }
+
+  function drawVisibleScene(boxes) {
+    const faces = buildVisibleFaces(boxes);
+    for (const face of faces) drawFace(face);
+
+    // Keep labels on top.
+    const labelBoxes = boxes.slice().sort((a,b) => boxDepth(a) - boxDepth(b));
+    for (const b of labelBoxes) {
+      if (els.labels.checked) drawDimensions(b, boxPoints(b));
+    }
+  }
+
+  function line(a,b) {
+    ctx.beginPath();
+    ctx.moveTo(a.x,a.y);
+    ctx.lineTo(b.x,b.y);
+    ctx.stroke();
+  }
+
+  function midpoint(a,b){ return {x:(a.x+b.x)/2, y:(a.y+b.y)/2}; }
+
+  function drawDimensions(b,p) {
+    ctx.save();
+    ctx.font = '600 16px ui-sans-serif, system-ui, sans-serif';
+    ctx.fillStyle = '#41413d';
+    ctx.strokeStyle='rgba(251,250,243,.88)';
+    ctx.lineWidth=4;
+    ctx.textAlign='center';
+    ctx.textBaseline='middle';
+
+    // x label: front bottom edge
+    const mx = midpoint(p.A,p.B);
+    label(String(b.sx), mx.x, mx.y+18);
+
+    // y label: put it on the OUTER visible depth edge.
+    // back-left  -> A-D (left side)
+    // back-right -> B-C (right side)
+    if (els.flipDiag.checked) {
+      const my = midpoint(p.B,p.C);
+      label(String(b.sy), my.x+18, my.y+8);
+    } else {
+      const my = midpoint(p.A,p.D);
+      label(String(b.sy), my.x-18, my.y+8);
+    }
+
+    // z label: put it on the outer visible front vertical edge.
+    // back-left  -> B-F (right side of front face)
+    // back-right -> A-E (left side of front face)
+    if (els.flipDiag.checked) {
+      const mz = midpoint(p.A,p.E);
+      label(String(b.sz), mz.x-20, mz.y);
+    } else {
+      const mz = midpoint(p.B,p.F);
+      label(String(b.sz), mz.x+20, mz.y);
+    }
+
+    ctx.restore();
+
+    function label(t,x,y){
+      ctx.strokeText(t,x,y);
+      ctx.fillText(t,x,y);
+    }
+  }
+
+  function drawAxes() {
+    if (!els.axes.checked) return;
+    const o = project(0,0,0);
+    const px = project(1.2,0,0);
+    const py = project(0,1.6,0);
+    const pz = project(0,0,1.2);
+
+    ctx.save();
+    ctx.strokeStyle='rgba(55,55,52,.65)';
+    ctx.fillStyle='rgba(55,55,52,.78)';
+    ctx.lineWidth=1.5;
+    ctx.font='600 13px ui-sans-serif, system-ui, sans-serif';
+
+    arrow(o,px);
+    arrow(o,py);
+    arrow(o,pz);
+
+    ctx.fillText('x',px.x+8,px.y+4);
+    ctx.fillText('y',py.x + (els.flipDiag.checked ? 8 : -12),py.y-4);
+    ctx.fillText('z',pz.x+5,pz.y-8);
+    ctx.restore();
+  }
+
+  function arrow(a,b) {
+    line(a,b);
+
+    const angle = Math.atan2(b.y-a.y, b.x-a.x);
+    const head = 8;
+
+    ctx.beginPath();
+    ctx.moveTo(b.x,b.y);
+    ctx.lineTo(
+      b.x - head*Math.cos(angle - Math.PI/6),
+      b.y - head*Math.sin(angle - Math.PI/6)
+    );
+    ctx.moveTo(b.x,b.y);
+    ctx.lineTo(
+      b.x - head*Math.cos(angle + Math.PI/6),
+      b.y - head*Math.sin(angle + Math.PI/6)
+    );
+    ctx.stroke();
+  }
+
+  function updateBadge() {
+    els.badge.textContent = els.flipDiag.checked
+      ? 'x → right · y ↗ back · z ↑ up'
+      : 'x → right · y ↖ back · z ↑ up';
+  }
+
+  function draw() {
+    els.gridSizeOut.textContent = els.gridSize.value;
+    els.lineOut.textContent = Number(els.lineWidth.value).toFixed(1);
+    updateBadge();
+
+    drawGrid();
+
+    const boxes = parseBoxes();
+
+    if (els.visibleOnly.checked) {
+      drawVisibleScene(boxes);
+    } else {
+      const ordered = boxes.slice().sort((a,b) => boxDepth(a) - boxDepth(b));
+      ordered.forEach(drawBox);
+    }
+
+    drawAxes();
+  }
+
+  let dragging=false, lastX=0, lastY=0;
+  canvas.addEventListener('pointerdown', e => {
+    dragging=true;
+    lastX=e.clientX; lastY=e.clientY;
+    canvas.setPointerCapture(e.pointerId);
+  });
+  canvas.addEventListener('pointermove', e => {
+    if(!dragging) return;
+    panX += e.clientX-lastX;
+    panY += e.clientY-lastY;
+    lastX=e.clientX; lastY=e.clientY;
+    draw();
+  });
+  canvas.addEventListener('pointerup', e => {
+    dragging=false;
+    try{canvas.releasePointerCapture(e.pointerId)}catch{}
+  });
+  canvas.addEventListener('pointercancel', ()=>dragging=false);
+
+  canvas.addEventListener('wheel', e => {
+    e.preventDefault();
+    const old=zoom;
+    zoom *= Math.exp(-e.deltaY*0.0012);
+    zoom=Math.min(3,Math.max(.35,zoom));
+
+    const rect=canvas.getBoundingClientRect();
+    const mx=e.clientX-rect.left;
+    const my=e.clientY-rect.top;
+    const o=baseOrigin();
+    const k=zoom/old;
+    panX += (mx-o.x)*(1-k);
+    panY += (my-o.y)*(1-k);
+    draw();
+  }, {passive:false});
+
+  for (const el of [
+    els.x,els.y,els.z,els.objects,els.gridSize,els.lineWidth,
+    els.labels,els.visibleOnly,els.flipDiag,els.axes
+  ]) {
+    el.addEventListener('input', draw);
+    el.addEventListener('change', draw);
+  }
+
+  els.reset.addEventListener('click',()=>{
+    panX=0; panY=0; zoom=1; draw();
+  });
+
+  els.png.addEventListener('click',()=>{
+    draw();
+    const a=document.createElement('a');
+    a.download='graph-paper-3d.png';
+    a.href=canvas.toDataURL('image/png');
+    a.click();
+  });
+
+  window.addEventListener('resize',resize);
+  resize();
+})();
+</script>
+</body>
+</html>
